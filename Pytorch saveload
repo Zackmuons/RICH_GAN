@@ -1,0 +1,13 @@
+ if epoch == num_epochs - 1 :
+# Save discriminator and generator models
+            torch.save(discriminator.state_dict(), 'D_gen5K.pth')
+            torch.save(generator.state_dict(), 'G_gen5K.pth')
+# Create a dictionary to save GAN information
+            gan_info = {
+                'discriminator_state_dict': discriminator.state_dict(),
+                'generator_state_dict': generator.state_dict(),
+                }
+# Save GAN information
+            torch.save(gan_info, 'gan_info_5K.pth')
+
+
