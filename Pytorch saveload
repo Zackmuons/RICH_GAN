@@ -10,4 +10,11 @@
 # Save GAN information
             torch.save(gan_info, 'gan_info_5K.pth')
 
+# Load discriminator and generator models
+discriminator.load_state_dict(torch.load('discriminator.pth'))
+generator.load_state_dict(torch.load('generator.pth'))
 
+# Load GAN information
+gan_info = torch.load('gan_info.pth')
+discriminator.load_state_dict(gan_info['discriminator_state_dict'])
+generator.load_state_dict(gan_info['generator_state_dict'])
