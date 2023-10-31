@@ -5,6 +5,12 @@ Created on Mon Oct 16 15:49:57 2023
 @author: Zack Amos
 """
 
+# Import WassersteinLoss from PyTorch
+#from torch.nn.modules.loss import WassersteinLoss
+
+# Define the Wasserstein loss function
+#wasserstein_loss = WassersteinLoss()
+
 import numpy as np
 import math
 import torch
@@ -20,12 +26,12 @@ print('device:', device)
 
 train_size = 1024
 
-#hmm doing this is a lil hard, 
-#need to generate so each batch starts back at one again for generated discriminator input
-#batch-size is 32 so needs 8 for 32%8 = 0, will need work in future
-radii = torch.tensor([0.1, 0.15, 0.2 ,0.25 , 0.3, 0.35, 0.4]).to(device)
+
+radii = [0.1, 0.2, 0.25, 0.3 , 0.4]
+radii = torch.tensor(radii).to(device)
+
 no_r = len(radii)
-points = 3
+points = 5
 
 # returning to x,y coordinates
 
@@ -76,11 +82,12 @@ train_set = makevector(train_size, radii, points, real = True)
 
 #batch that shizzle
 batch_size = 32
+
 #train_loader = train_set.view(32, batch_size, 2*points+1)
 #print(train_loader)
 
 train_loader = torch.utils.data.DataLoader(
-    train_set, batch_size=batch_size, shuffle=True
+    train_set, batch_size=batch_size, shuffle=False
 )
 print(train_loader)
 
@@ -91,12 +98,15 @@ class Discriminator(nn.Module):
 		super().__init__()
 		self.model = nn.Sequential(
 		nn.Linear(points*2 + 1, 256),
-		nn.LeakyReLU(0.2, inplace=True),
+		nn.ReLU(),
 		nn.Dropout(0.3),
 		nn.Linear(256, 128),
-		nn.LeakyReLU(0.2, inplace=True),
+		nn.ReLU(),
 		nn.Dropout(0.3),
-		nn.Linear(128, 1),
+		nn.Linear(128, 64),
+		nn.ReLU(),
+		nn.Dropout(0.3),
+		nn.Linear(64, 1),
 		nn.Sigmoid(),
 		)
 
@@ -125,9 +135,11 @@ class Generator(nn.Module):
 generator = Generator().to(device)
 
 # define hyperparameters
-lr = 0.0001
+
+lr = 0.00005
 num_epochs = 1001
 loss_function = nn.BCELoss()
+
 
 loss_list = np.empty((0,3))
 
@@ -137,11 +149,12 @@ optimizer_generator = torch.optim.Adam(generator.parameters(), lr=lr)
 
 counter = 0
 
-"""
+
 # Load discriminator and generator models
-discriminator.load_state_dict(torch.load('D_gen5K.pth'))
-generator.load_state_dict(torch.load('G_gen5K.pth'))
-"""
+
+discriminator.load_state_dict(torch.load('D_CGAN1.pth'))
+generator.load_state_dict(torch.load('G_CGAN1.pth'))
+
 
 
 for epoch in range(num_epochs):
@@ -162,20 +175,51 @@ for epoch in range(num_epochs):
 		all_samples = torch.cat((real_samples, generated_samples))
 		all_samples_labels = torch.cat((real_samples_labels, generated_samples_labels))
 
+
+		"""
+		#wasserstein bit
+        # Training the discriminator
+		discriminator.zero_grad()
+		output_discriminator = discriminator(all_samples)
+
+        # Calculate Wasserstein loss and optimize
+		loss_discriminator = -output_discriminator.mean()  # Negative since it's a minimization problem
+		loss_discriminator.backward()
+		optimizer_discriminator.step()
+
+        # Data for and training of the generator
+		latent_space_samples = makevector(batch_size, radii, points, real=False)
+		generated_samples = generator(latent_space_samples)
+		output_discriminator_generated = discriminator(generated_samples)
+
+        # Calculate Wasserstein loss for the generator
+		loss_generator = -output_discriminator_generated.mean()  # Negative since it's a minimization problem
+		loss_generator.backward()
+		optimizer_generator.step()
+		
+
+
+		"""
 		# Training the discriminator
 		discriminator.zero_grad()
 		output_discriminator = discriminator(all_samples)
+		
+		print([torch.mean(output_discriminator[:15]),torch.mean(output_discriminator[:-15])])
 		#calc loss and optimise
 		
+
 		loss_discriminator = loss_function(output_discriminator, all_samples_labels)
 		loss_discriminator.backward()
 		optimizer_discriminator.step()
 
 		# Data for and training of the generator
+
+		generator.zero_grad()
 		latent_space_samples = makevector(batch_size,radii,points, real = False )
 		generated_samples = generator(latent_space_samples)
 		#output_discriminator_generated = discriminator(torch.cat((generated_samples, the_r),1))
 		output_discriminator_generated = discriminator(generated_samples)
+
 		#calc loss and optimise
 		loss_generator = loss_function(output_discriminator_generated, real_samples_labels)
 		loss_generator.backward()
@@ -187,11 +231,15 @@ for epoch in range(num_epochs):
 		loss_list = np.append(loss_list, [[counter, loss_g, loss_d]], axis=0)
 		counter +=1
 		# Show loss
-		
+
 		if epoch % 100 == 0 and n == batch_size - 1:
-			print(f"Epoch: {epoch} loss D: {loss_discriminator}")
-			print(f"Epoch: {epoch} loss G: {loss_generator}")
+			e = epoch + 1200
+			print(f"Epoch: {e} loss D: {loss_discriminator}")
+			print(f"Epoch: {e} loss G: {loss_generator}")
+
 			
+			plt.savefig(f'testset_{epoch}.png')
+			plt.close('all')
 			
 			
 			plt.figure(figsize=(16,16))
@@ -203,11 +251,11 @@ for epoch in range(num_epochs):
 			plt.plot(loss_list[:,0], loss_list[:,2])
 			
 			
-			r1 = torch.ones(5)*radii[0]
+			r1 = torch.ones(10)*radii[0]
 			r1 = r1[:,None]
-			r2 = torch.ones(5)*radii[4]
+			r2 = torch.ones(10)*radii[3]
 			r2 = r2[:,None]
-			latent_space_samples = torch.randn(5, points*2)
+			latent_space_samples = torch.randn(10, points*2)
 			v1 = torch.cat((latent_space_samples, r1),1)
 			v2 = torch.cat((latent_space_samples, r2),1)
 			gener1 = generator(v1)
@@ -219,36 +267,37 @@ for epoch in range(num_epochs):
 			gener2 = gener2[:,:-1]
 			
 			plt.subplot(2,2,3)
-			#plt.xlim(-0.5,0.5)
-			#plt.ylim(-0.5,0.5)
+			plt.xlim(-0.5,0.5)
+			plt.ylim(-0.5,0.5)
 			
-			gener1 = gener1.reshape(5*points,2)
+			gener1 = gener1.reshape(10*points,2)
 			plt.plot(gener1[:,0], gener1[:,1] , ".")
 			
 			
 			plt.subplot(2,2,4)
-			#plt.xlim(-0.5,0.5)
-			#plt.ylim(-0.5,0.5)
-			gener2 = gener2.reshape(5*points,2)
+			plt.xlim(-0.5,0.5)
+			plt.ylim(-0.5,0.5)
+			gener2 = gener2.reshape(10*points,2)
 			plt.plot(gener2[:,0],gener2[:,1] , ".")
 			
-			plt.savefig(f'testsetlarge_{epoch}.png')
+			plt.savefig(f'testset_{e}.png')
 			plt.close('all')
-		"""	
-		if epoch == 201:
-			# Save discriminator and generator models
-			torch.save(discriminator.state_dict(), 'D_gen5K.pth')
-			torch.save(generator.state_dict(), 'G_gen5K.pth')
+		
+		if epoch == 1000:
+			
+
 			# Create a dictionary to save GAN information
 			gan_info = {
 					'discriminator_state_dict': discriminator.state_dict(),
 					'generator_state_dict': generator.state_dict(),
 					}
 			# Save discriminator and generator models
-			torch.save(discriminator.state_dict(), 'D_gen5K.pth')
-			torch.save(generator.state_dict(), 'G_gen5K.pth')
+
+			torch.save(discriminator.state_dict(), 'D_CGAN1.pth')
+			torch.save(generator.state_dict(), 'G_CGAN1.pth')
 			# Save GAN information
-			torch.save(gan_info, 'gan_info_5K.pth')
+			torch.save(gan_info, 'gan_info_CGAN1-2.pth')
 			#print("Epoch: {} time: {}".format(epoch,time.time()-t))
-		"""
+		
+
 
