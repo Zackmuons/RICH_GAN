@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 import math
+import torch
 
 def generate_sparse_circle_images(num_points, num_images, min_radius, max_radius, window_height=100, window_width=200):
     images = []
@@ -54,7 +55,12 @@ for i, image in enumerate(sparse_circle_images):
 # Access point coordinates and centers for each image
 for i, (coords, center) in enumerate(zip(point_coords, centers)):
     print(f"Coordinates and Center for Image {i+1}:")
+    cond_vector = torch.empty(1,5)
     for x, y, r, center_x, center_y in coords:
-        print(f"Point ({x}, {y}), Radius: {r}, Center: ({center_x}, {center_y})")
-
+        cond =torch.tensor([x, y, r, center_x, center_y])
+        cond = cond.unsqueeze(0)
+        cond_vector = torch.cat((cond_vector, cond),0)
+        #print(f"Point ({x}, {y}), Radius: {r}, Center: ({center_x}, {center_y})")#
+    
+    print(cond_vector)
 plt.show()
