@@ -20,6 +20,7 @@ import time
 
 torch.set_default_dtype(torch.float32)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 torch.set_default_device(device)
 cpu = 'cpu'
 
@@ -36,10 +37,12 @@ radii = torch.tensor(radii).to(device)
 no_r = len(radii)
 points = 1
 
+
 # returning to x,y coordinates
 
 def makevector(size, radii, points, real = False, just_r = False):
 	#set of alternating radii
+
 	cond = torch.ones(size, dtype=torch.float32) * radii[torch.arange(size) % no_r]
 	cond = cond.unsqueeze(1)	
 	
@@ -77,16 +80,17 @@ def makevector(size, radii, points, real = False, just_r = False):
 		#print(vector)
 		return vector.to(device)
 
+
 #define our train set of sets of 5 points with correponding radii
 train_set = makevector(train_size, radii, points, real = True)
 
-
-
 #batch that shizzle
-batch_size = 8
+batch_size = 32
+
 
 #train_loader = train_set.view(32, batch_size, 2*points+1)
 #print(train_loader)
+
 
 train_loader = torch.utils.data.DataLoader(
     train_set, batch_size=batch_size, shuffle=False
@@ -137,13 +141,13 @@ class Generator(nn.Module):
 generator = Generator().to(device)
 
 # define hyperparameters
-
 lr = 0.00005
 num_epochs = 1001
 loss_function = nn.BCELoss()
 
 
 loss_list = torch.empty(0,3)
+
 
 
 optimizer_discriminator = torch.optim.Adam(discriminator.parameters(), lr=lr)
@@ -153,6 +157,7 @@ counter = 0
 
 
 # Load discriminator and generator models
+
 
 if __name__ == "__main__":
 	"""
@@ -166,6 +171,7 @@ if __name__ == "__main__":
 		
 		if epoch%100 == -1:
 			t = time.time()
+
 			
 	
 		for n, real_samples in enumerate(train_loader):
@@ -180,6 +186,7 @@ if __name__ == "__main__":
 			real_samples_labels = torch.ones((batch_size,1))
 			
 			
+
 			all_samples = torch.cat((real_samples, generated_samples))
 			all_samples_labels = torch.cat((real_samples_labels, generated_samples_labels))
 	
@@ -315,7 +322,5 @@ if __name__ == "__main__":
 				torch.save(gan_info, 'gan_info_CGAN1-2.pth')
 			
 			
-	
-	
 	
 	
