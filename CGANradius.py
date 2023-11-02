@@ -272,7 +272,7 @@ for epoch in range(num_epochs):
 			plt.savefig(f'testset_{e}.png')
 			plt.close('all')
 		
-		if epoch == 1000:
+		if epoch%1000 == 0:
 			
 			# Create a dictionary to save GAN information
 			gan_info = {
