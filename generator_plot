@@ -1,0 +1,91 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Nov  1 03:59:49 2023
+
+@author: Zack Amos
+"""
+
+import torch
+from torch import nn
+from CGANradius import makevector, Discriminator, Generator
+import matplotlib.pyplot as plt
+
+discriminator = Discriminator()
+
+generator = Generator()
+
+radii = [0.1, 0.2, 0.3, 0.4]
+points = 1
+samples = 50
+device = 'cpu'
+# Load discriminator and generator models
+discriminator.load_state_dict(torch.load('D_CGAN1.pth', map_location=device))
+generator.load_state_dict(torch.load('G_CGAN1.pth', map_location=device))
+"""
+# Load GAN information
+gan_info = torch.load('gan_info_CGAN1.pth')
+discriminator.load_state_dict(gan_info['discriminator_state_dict'])
+generator.load_state_dict(gan_info['generator_state_dict'])
+"""
+
+r1 = torch.ones(samples)*radii[0]
+r1 = r1[:,None]
+r2 = torch.ones(samples)*radii[1]
+r2 = r2[:,None]
+r3 = torch.ones(samples)*radii[2]
+r3 = r3[:,None]
+r4 = torch.ones(samples)*radii[3]
+r4 = r4[:,None]
+latent_space_samples = torch.randn(samples, points*2)
+v1 = torch.cat((latent_space_samples, r1),1)
+latent_space_samples = torch.randn(samples, points*2)
+v2 = torch.cat((latent_space_samples, r2),1)
+gener1 = generator(v1)
+gener2 = generator(v2)
+gener1 = gener1.detach()
+gener2 = gener2.detach()
+latent_space_samples = torch.randn(samples, points*2)
+v3 = torch.cat((latent_space_samples, r3),1)
+latent_space_samples = torch.randn(samples, points*2)
+v4 = torch.cat((latent_space_samples, r4),1)
+gener3 = generator(v3)
+gener4 = generator(v4)
+gener3 = gener3.detach()
+gener4 = gener3.detach()
+
+
+gener1 = gener1[:,:-1]
+gener2 = gener2[:,:-1]
+gener3 = gener3[:,:-1]
+gener4 = gener4[:,:-1]
+
+plt.figure(figsize=(16,16))
+plt.subplot(2,2,1)
+plt.xlim(-0.5,0.5)
+plt.ylim(-0.5,0.5)
+
+gener1 = gener1.reshape(samples*points,2)
+plt.plot(gener1[:,0], gener1[:,1] , ".")
+
+
+plt.subplot(2,2,2)
+plt.xlim(-0.5,0.5)
+plt.ylim(-0.5,0.5)
+gener2 = gener2.reshape(samples*points,2)
+plt.plot(gener2[:,0],gener2[:,1] , ".")
+
+plt.subplot(2,2,3)
+plt.xlim(-0.5,0.5)
+plt.ylim(-0.5,0.5)
+
+gener3 = gener3.reshape(samples*points,2)
+plt.plot(gener3[:,0], gener3[:,1] , ".")
+
+
+plt.subplot(2,2,4)
+plt.xlim(-0.5,0.5)
+plt.ylim(-0.5,0.5)
+gener4 = gener4.reshape(samples*points,2)
+plt.plot(gener4[:,0],gener4[:,1] , ".")
+
+plt.show

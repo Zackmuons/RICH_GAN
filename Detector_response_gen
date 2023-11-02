@@ -1,0 +1,66 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import random
+import math
+import torch
+
+def generate_sparse_circle_images(num_points, num_images, min_radius, max_radius, window_height=100, window_width=200):
+    images = []
+    point_coordinates = []  # Store coordinates for each point on the circumference
+    centers = []  # Store the center coordinates (x, y) for each image
+
+    for _ in range(num_images):
+        # Randomly choose the radius for the circle
+        radius = random.randint(min_radius, max_radius)
+
+        # Create a blank image (white background)
+        image = np.ones((window_height, window_width), dtype=np.uint8) * 255  # White background
+
+        # Randomly choose the center of the circle
+        center_x = random.randint(radius, window_width - radius)
+        center_y = random.randint(radius, window_height - radius)
+        centers.append((center_x, center_y))
+
+        # Randomly distribute the circumference pixels in theta
+        theta_values = [random.uniform(0, 2 * math.pi) for _ in range(num_points)]
+        coordinates = []  # Store coordinates for this image
+
+        for theta in theta_values:
+            # Calculate the pixel position on the circumference
+            x = int(center_x + radius * math.cos(theta))
+            y = int(center_y + radius * math.sin(theta))
+            if 0 <= x < window_width and 0 <= y < window_height:
+                image[y, x] = 0  # Set pixel to black on the circumference
+                coordinates.append((x, y, radius, center_x, center_y))
+
+        images.append(image)
+        point_coordinates.append(coordinates)
+
+    return images, point_coordinates, centers
+
+# Example usage:
+num_points = 50
+num_images = 5
+min_radius = 5
+max_radius = 20
+sparse_circle_images, point_coords, centers = generate_sparse_circle_images(num_points, num_images, min_radius, max_radius)
+
+# Display the generated images using Matplotlib
+for i, image in enumerate(sparse_circle_images):
+    plt.figure()
+    plt.imshow(image, cmap='gray', vmin=0, vmax=255)
+    plt.title(f"Image {i+1}")
+    plt.axis('off')
+
+# Access point coordinates and centers for each image
+for i, (coords, center) in enumerate(zip(point_coords, centers)):
+    print(f"Coordinates and Center for Image {i+1}:")
+    cond_vector = torch.empty(1,5)
+    for x, y, r, center_x, center_y in coords:
+        cond =torch.tensor([x, y, r, center_x, center_y])
+        cond = cond.unsqueeze(0)
+        cond_vector = torch.cat((cond_vector, cond),0)
+        #print(f"Point ({x}, {y}), Radius: {r}, Center: ({center_x}, {center_y})")#
+    
+    print(cond_vector)
+plt.show()

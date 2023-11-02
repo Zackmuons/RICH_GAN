@@ -12,14 +12,26 @@ from torch import nn
 import matplotlib.pyplot as plt
 
 train_size = 1024
+halfsize = int(train_size/2)
 
-signal = torch.zeros((train_size,2))
+signal1 = torch.zeros((halfsize,2))
+signal2 = torch.zeros((halfsize,2))
 theta = torch.rand(train_size)*2.*math.pi
 r = 0.1
-signal[:,0] = r
-signal[:,1] = theta
-labels = torch.zeros(train_size)
-train_set = [(signal[i], labels[i]) for i in range(train_size)]
+signal1[:,0] = r
+signal1[:,1] = theta[:512]
+
+signal2[:,0] = 2*r
+signal2[:,1] = theta[:-512]
+
+labels1 = torch.ones(halfsize,1)
+labels2 = 2*torch.ones(halfsize,1)
+
+signal = torch.cat((signal1, signal2))
+labels = torch.cat((labels1, labels2))
+signal = torch.cat((signal, labels),1)
+
+train_set = [torch.cat((signal[i], labels[i])) for i in range(train_size)]
 
 
 #plt.plot(signal[:,0],signal[:,1],".")
@@ -34,7 +46,7 @@ class Discriminator(nn.Module):
     def __init__(self):
         super().__init__()
         self.model = nn.Sequential(
-        nn.Linear(2, 256),
+        nn.Linear(3, 256),
         nn.ReLU(),
         nn.Dropout(0.3),
         nn.Linear(256, 128),
@@ -57,7 +69,7 @@ class Generator(nn.Module):
     def __init__(self):
         super().__init__()
         self.model = nn.Sequential(
-            nn.Linear(2, 16),
+            nn.Linear(3, 16),
             nn.ReLU(),
             nn.Linear(16, 32),
             nn.ReLU(),
@@ -71,9 +83,8 @@ class Generator(nn.Module):
 generator = Generator()
 
 lr = 0.0001
-num_epochs = 5001
+num_epochs = 101
 loss_function = nn.BCELoss()
-
 
 loss_list = np.empty((0,3))
 
@@ -81,31 +92,36 @@ optimizer_discriminator = torch.optim.Adam(discriminator.parameters(), lr=lr)
 optimizer_generator = torch.optim.Adam(generator.parameters(), lr=lr)
 
 counter = 0
+
+
+
+
 for epoch in range(num_epochs):
-    
-    for n, (real_samples, _) in enumerate(train_loader):
-        
+    print(epoch)
+    loader = enumerate(train_loader)
+    loaderdict = dict(loader)
+    for n, (real_samples, real_samples_labels)  in enumerate(train_loader):
+        print(n)
         # Data for training the discriminator
-        real_samples_labels = torch.ones((batch_size, 1))
+        radii = torch.cat((torch.ones(int(batch_size/2)),2*torch.ones(int(batch_size/2))))
         latent_space_samples = torch.randn((batch_size, 2))
-        generated_samples = generator(latent_space_samples)
-        generated_samples_labels = torch.zeros((batch_size, 1))
+		#generate samples with 
+        generated_samples = generator(torch.cat((latent_space_samples, [radii]),1))
+        generated_samples_labels = torch.zeros((batch_size,1))
         all_samples = torch.cat((real_samples, generated_samples))
         all_samples_labels = torch.cat((real_samples_labels, generated_samples_labels))
 
-        # Training the discriminator
+        # Training the discriminator on real samples
         discriminator.zero_grad()
         output_discriminator = discriminator(all_samples)
         loss_discriminator = loss_function(output_discriminator, all_samples_labels)
         loss_discriminator.backward()
         optimizer_discriminator.step()
 
-        # Data for training the generator
+        # Data for and training of the generator
+        radii = torch.cat((torch.ones(int(batch_size/2)),2*torch.ones(int(batch_size/2))))
         latent_space_samples = torch.randn((batch_size, 2))
-
-        # Training the generator
-        generator.zero_grad()
-        generated_samples = generator(latent_space_samples)
+        generated_samples = generator(torch.cat((latent_space_samples, [radii]),1))
         output_discriminator_generated = discriminator(generated_samples)
         loss_generator = loss_function(output_discriminator_generated, real_samples_labels)
         loss_generator.backward()
@@ -115,7 +131,7 @@ for epoch in range(num_epochs):
         loss_list = np.append(loss_list, [[counter, loss_generator.detach().numpy(), loss_discriminator.detach().numpy()]], axis=0)
         counter +=1
         # Show loss
-        if epoch % 100 == 0 and n == batch_size - 1:
+        if epoch % 10 == 0 and n == batch_size - 1:
             print(f"Epoch: {epoch} loss D: {loss_discriminator}")
             print(f"Epoch: {epoch} loss G: {loss_generator}")
             
@@ -126,25 +142,31 @@ for epoch in range(num_epochs):
             plt.plot(loss_list[:,0], loss_list[:,2])
             
             
-            latent_space_samples = torch.randn(100, 2)
-            generated_samples = generator(latent_space_samples)
+            radii = torch.cat((torch.ones(int(batch_size/2)),2*torch.ones(int(batch_size/2))))
+            latent_space_samples = torch.randn((batch_size, 2))
+            generated_samples = generator(torch.cat((latent_space_samples, [radii]),1))
             generated_samples = generated_samples.detach()
             
             plt.subplot(2,2,3)
-            plt.xlim(-1,1)
-            plt.ylim(0.5,7)
-            plt.plot(generated_samples[:, 0],generated_samples[:, 1],".")
+            plt.xlim(-0.25,0.25)
+            plt.ylim(-0.25,0.25)
+            sin = torch.sin(signal[:, 1])
+            cos = torch.cos(signal[:, 1])
+            x = torch.multiply(signal[:, 0],sin)
+            y = torch.multiply(signal[:, 0],cos)
+            plt.plot(x,y , ".")
+            
             
             plt.subplot(2,2,4)
-            plt.xlim(-0.1,0.1)
-            plt.ylim(-0.1,0.1)
+            plt.xlim(-0.25,0.25)
+            plt.ylim(-0.25,0.25)
             sin = torch.sin(generated_samples[:, 1])
             cos = torch.cos(generated_samples[:, 1])
             x = torch.multiply(generated_samples[:, 0],sin)
             y = torch.multiply(generated_samples[:, 0],cos)
             plt.plot(x,y , ".")
                 
-            plt.savefig(f'images_simplecircle_{epoch}.png')
+            plt.savefig(f'images_polarcircle_{epoch}.png')
             plt.close('all')
             
     
