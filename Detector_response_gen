@@ -102,16 +102,19 @@ import math
 def generate_circle_vector(num_points, num_images, radii):
     circle_vectors = []
 
-    for _ in range(num_images):
+    # Generate random indices to select radii from the provided list
+    radii_indices = torch.randint(0, len(radii), (num_images,))
+
+    for i in range(num_images):
         # Randomly choose a radius from the provided list of radii
-        radius = random.choice(radii)
+        radius = radii[radii_indices[i]]
 
         # Randomly choose the center coordinates (x, y) for each circle
-        center_x = random.uniform(radius, 256 - radius)
-        center_y = random.uniform(radius, 256 - radius)
+        center_x = torch.empty(1).uniform_(radius, 200 - radius)
+        center_y = torch.empty(1).uniform_(radius, 100 - radius)
 
         # Randomly distribute the circumference angles (theta) for all points
-        theta_values = torch.empty(num_points).uniform_(0, 2 * math.pi)
+        theta_values = torch.rand(num_points) * (2 * math.pi)
 
         # Calculate the x and y coordinates for all points on the circumference
         x_coordinates = center_x + radius * torch.cos(theta_values)
@@ -119,7 +122,7 @@ def generate_circle_vector(num_points, num_images, radii):
 
         # Add the coordinates to the circle vector
         for x, y in zip(x_coordinates, y_coordinates):
-            circle_vectors.append([x, y, center_x, center_y, radius])
+            circle_vectors.append([x.item(), y.item(), center_x.item(), center_y.item(), radius])
 
     return torch.tensor(circle_vectors)
 
@@ -130,4 +133,3 @@ radii = [5, 10, 15, 20]  # Set of radii to choose from
 circle_vector = generate_circle_vector(num_points, num_images, radii)
 
 # Access the generated circle vector
-print(circle_vector)
