@@ -32,22 +32,28 @@ train_size = 1024
 
 
 radii = [0.1, 0.2, 0.3, 0.4]
-radii = torch.tensor(radii).to(device)
+#radii = torch.tensor(radii).to(device)
 
 no_r = len(radii)
-points = 1
-
+points = 4
 
 # returning to x,y coordinates
 
 def makevector(size, radii, points, real = False, just_r = False):
 	#set of alternating radii
+	x = size/no_r
+	x=int(x)
+	
+	cond = torch.tensor(radii*x)
+	remainder = x - len(cond)
+	if remainder > 0:
+		   cond = torch.cat([cond, torch.tensor(radii[:remainder])])
 
-	cond = torch.ones(size, dtype=torch.float32) * radii[torch.arange(size) % no_r]
-	cond = cond.unsqueeze(1)	
 	
-	
-	cond = torch.tensor(cond).to(device)
+	cond = cond.view(size,1)
+	#print(cond.size())
+	#print(cond)
+	cond.to(device)
 	
 	if just_r :
 		return cond
