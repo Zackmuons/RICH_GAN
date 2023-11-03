@@ -64,3 +64,70 @@ for i, (coords, center) in enumerate(zip(point_coords, centers)):
     
     print(cond_vector)
 plt.show()
+
+########################################
+
+# Define a function to generate the circle vectors
+def generate_circle_vector(num_points, num_images, min_radius, max_radius):
+    circle_vectors = []
+
+    for _ in range(num_images):
+        # Randomly choose the radius for each circle
+        radius = random.randint(min_radius, max_radius)
+
+        # Randomly choose the center coordinates (x, y) for each circle
+        center_x = random.uniform(radius, 256 - radius)
+        center_y = random.uniform(radius, 256 - radius)
+
+        # Randomly distribute the circumference angles (theta) for all points
+        theta_values = [random.uniform(0, 2 * math.pi) for _ in range(num_points)]
+
+        for theta in theta_values:
+            # Calculate the x and y coordinates for all points on the circumference
+            x = int(center_x + radius * math.cos(theta))
+            y = int(center_y + radius * math.sin(theta))
+
+            # Add the coordinates to the circle vector
+            circle_vectors.append([x, y, center_x, center_y, radius])
+
+    return torch.tensor(circle_vectors)
+
+
+################################################
+
+import torch
+import random
+import math
+
+def generate_circle_vector(num_points, num_images, radii):
+    circle_vectors = []
+
+    for _ in range(num_images):
+        # Randomly choose a radius from the provided list of radii
+        radius = random.choice(radii)
+
+        # Randomly choose the center coordinates (x, y) for each circle
+        center_x = random.uniform(radius, 256 - radius)
+        center_y = random.uniform(radius, 256 - radius)
+
+        # Randomly distribute the circumference angles (theta) for all points
+        theta_values = torch.empty(num_points).uniform_(0, 2 * math.pi)
+
+        # Calculate the x and y coordinates for all points on the circumference
+        x_coordinates = center_x + radius * torch.cos(theta_values)
+        y_coordinates = center_y + radius * torch.sin(theta_values)
+
+        # Add the coordinates to the circle vector
+        for x, y in zip(x_coordinates, y_coordinates):
+            circle_vectors.append([x, y, center_x, center_y, radius])
+
+    return torch.tensor(circle_vectors)
+
+# Example usage:
+num_points = 50
+num_images = 5
+radii = [5, 10, 15, 20]  # Set of radii to choose from
+circle_vector = generate_circle_vector(num_points, num_images, radii)
+
+# Access the generated circle vector
+print(circle_vector)
