@@ -24,7 +24,7 @@ train_size = 1024
 #need to generate so each batch starts back at one again for generated discriminator input
 #batch-size is 32 so needs 8 for 32%8 = 0, will need work in future
 radii = [0.1]
-points = 50
+points = 100
 
 # returning to x,y coordinates
 """
@@ -70,6 +70,17 @@ def makevector(size, radii, points, real = False, just_r = False):
 """
 
 def generate_circle_vector(train_size, points, radii):
+
+"""
+for n in points, m in train_size, function returns: 
+
+ tensor([x1, y1, ... , xn, yn, cx, cy, r]_1, 
+	.
+	.
+	.
+	[x1, y1, ... , xn, yn, cx, cy, r]_m])
+
+"""
     radii = torch.tensor(radii)
     num_radii = len(radii)
     theta_values = torch.rand(train_size, points) * (2 * math.pi)
@@ -238,24 +249,26 @@ for epoch in range(num_epochs):
 			v2 = torch.cat((latent_space_samples, generate_circle_vector(5, points, radii)[:, 2*points:]),1)
 			gener1 = generator(v1)
 			gener2 = generator(v2)
+			print(gener1.size())
 			gener1 = gener1.detach()
 			gener2 = gener2.detach()
 			
-			gener1 = gener1[:,:-1]
-			gener2 = gener2[:,:-1]
+			gener1 = gener1[:,:-3]
+			print(gener1.size())
+			gener2 = gener2[:,:-3]
 			
 			plt.subplot(2,2,3)
 			#plt.xlim(-0.5,0.5)
 			#plt.ylim(-0.5,0.5)
 			
-			gener1 = gener1.reshape(5*points,3)
+			gener1 = gener1.reshape(5*points,2)
 			plt.plot(gener1[:,0], gener1[:,1] , ".")
 			
 			
 			plt.subplot(2,2,4)
 			#plt.xlim(-0.5,0.5)
 			#plt.ylim(-0.5,0.5)
-			gener2 = gener2.reshape(5*points,3)
+			gener2 = gener2.reshape(5*points,2)
 			plt.plot(gener2[:,0],gener2[:,1] , ".")
 			
 			plt.savefig(f'testsetlarge_{epoch}.png')
