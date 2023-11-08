@@ -6,6 +6,7 @@ Created on Mon Oct 16 15:49:57 2023
 """
 
 import numpy as np
+import random
 import math
 import torch
 from torch import nn
@@ -24,7 +25,7 @@ train_size = 1024
 #need to generate so each batch starts back at one again for generated discriminator input
 #batch-size is 32 so needs 8 for 32%8 = 0, will need work in future
 radii = [0.2]
-points = 1
+points = 4
 
 
 # returning to x,y coordinates
@@ -81,8 +82,10 @@ def generate_circle_vector(train_size, points, radii, plot = False):
 
 
     # Randomly choose the center coordinates (x, y) for each circle
-    center_x = torch.zeros(train_size, 1)#torch.empty(train_size, 1).uniform_(rad[0], 1-rad[0])  # Random values between 0 and 1
-    center_y = torch.zeros(train_size, 1)#torch.empty(train_size, 1).uniform_(rad[0], 1-rad[0])  # Random values between 0 and 1
+    center_x = torch.zeros(train_size, 1)
+    center_y = torch.zeros(train_size, 1)
+    #center_x = torch.ones(train_size, 1) * ( random.random() - 0.5 )
+    #center_y = torch.ones(train_size, 1) * (random.random() - 0.5 )
     #center_x = torch.empty(train_size, 1).normal_(0.5, 0.125)
     #center_y = torch.empty(train_size, 1).normal_(0.5, 0.125)
     #center_x = torch.empty(train_size, 1).uniform_(rad[0], 1-rad[0])  # Random values between 0 and 1
@@ -124,7 +127,6 @@ batch_size = 32
 train_loader = torch.utils.data.DataLoader(
     train_set, batch_size=batch_size, shuffle=True
 )
-print(train_loader)
 
 
 # want to optimise these also add cuda possibilities
@@ -168,7 +170,7 @@ generator = Generator().to(device)
 
 # define hyperparameters
 lr = 0.0002
-num_epochs = 1001
+num_epochs = 10001
 loss_function = nn.MSELoss()
 
 loss_list = np.empty((0,3))
@@ -206,7 +208,7 @@ for epoch in range(num_epochs):
 		
 		
 		all_samples = torch.cat((real_samples, generated_samples))
-		#print(all_samples)
+		print(all_samples)
 		#print((all_samples[:, 0]**2 + all_samples[:, 1]**2)**(1/2))
 		all_samples_labels = torch.cat((real_samples_labels, generated_samples_labels))
 		# Training the discriminator
@@ -241,7 +243,7 @@ for epoch in range(num_epochs):
 		counter +=1
 		# Show loss
 		
-		if epoch % 50 == 0 and n == batch_size - 1:
+		if epoch % 10 == 0 and n == batch_size - 1:
 			print(f"Epoch: {epoch} loss D: {loss_discriminator}")
 			print(f"Epoch: {epoch} loss G: {loss_generator}")
 			
@@ -260,9 +262,12 @@ for epoch in range(num_epochs):
 			#r1 = r1[:,None]
 			#r2 = torch.ones(5)*radii[1]
 			#r2 = r2[:,None]
-			latent_space_samples = torch.randn(100, points*2)
-			v1 = torch.cat((latent_space_samples, generate_circle_vector(100, points, radii)[:, 2*points:]),1)
-			v2 = torch.cat((latent_space_samples, generate_circle_vector(100, points, radii)[:, 2*points:]),1)
+			latent_space_samples1 = torch.randn(100, points*2)
+			latent_space_samples2 = torch.randn(100, points*2)
+			cond1 = generate_circle_vector(100, points, [0.2])[:, 2*points:]
+			cond2 = generate_circle_vector(100, points, [0.2])[:, 2*points:]
+			v1 = torch.cat((latent_space_samples1, cond1),1)
+			v2 = torch.cat((latent_space_samples2, cond2),1)
 			gener1 = generator(v1)
 			gener2 = generator(v2)
 			#print(gener1.size())
@@ -271,20 +276,20 @@ for epoch in range(num_epochs):
 			#print(gener1.size())
 			
 			plt.subplot(2,2,3)
-			#plt.xlim(-0.5,0.5)
-			#plt.ylim(-0.5,0.5)
+			plt.xlim(-1,1)
+			plt.ylim(-1,1)
 			
 			gener1 = gener1[:, :-1]
 			plt.plot(gener1[:,0], gener1[:,1] , ".")
 			
 			
 			plt.subplot(2,2,4)
-			#plt.xlim(-0.5,0.5)
-			#plt.ylim(-0.5,0.5)
+			plt.xlim(-1,1)
+			plt.ylim(-1,1)
 			gener2 = gener2[:, :-1]
 			plt.plot(gener2[:,0],gener2[:,1] , ".")
 			
-			plt.savefig(f'testsetlarge_{epoch}.png')
+			plt.savefig(f'testsetnew_{epoch}.png')
 			plt.close('all')
 		"""	
 		if epoch == 201:
