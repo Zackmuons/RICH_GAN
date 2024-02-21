@@ -113,7 +113,7 @@ def main():
     ##################### Setup shit #######################
     conds_df = train_df[['p', 'eta', 'phi', 'track_x',
                          'track_y', 'track_z', 'logp']]
-    rnc_df = train_df[['r', 'c_x', 'c_y']]
+    #rnc_df = train_df[['r', 'c_x', 'c_y']]
     hits_df = train_df[['x', 'y']]
 
     ################# normalize that shit ##################
@@ -121,9 +121,22 @@ def main():
     conds_df_normalized = pd.DataFrame(
         scaler.fit_transform(conds_df), columns=conds_df.columns)
     
-    rnc_df_normalized = pd.DataFrame(
-        scaler.fit_transform(rnc_df), columns = rnc_df.columns)
+    rnc_df_normalized = pd.DataFrame(columns = ['r', 'cx', 'cy'])
+    r_df = train_df['r']
+    c_df = train_df[['c_x','c_y']]
+    r_df_normalized = scaler.fit_transform(r_df.values.reshape(-1, 1))
+    c_df.reset_index(drop = True, inplace = True)
+
+    # Update 'r' column in rnc_df_normalized
+    rnc_df_normalized['r'] = r_df_normalized.flatten()
+    max_center = np.abs(c_df).max().max()
     
+    c_df = c_df/max_center
+    rnc_df_normalized['r'] = r_df_normalized
+    rnc_df_normalized[['cx','cy']] = c_df
+    #print(train_df[['r','c_x','c_y']])
+    #print(rnc_df_normalized)
+
     
     conds_df_normalized.reset_index(drop=True, inplace=True)
     rnc_df_normalized.reset_index(drop=True, inplace=True)
