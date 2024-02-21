@@ -7,34 +7,39 @@ from matplotlib.colors import LogNorm
 from skg.nsphere import nsphere_fit
 import pickle
 from sklearn.preprocessing import MinMaxScaler
-import random 
+import random
+
 
 def get_rings(file, add_circle_fit_at_start=True):
-    
+
     print("Getting some rings boiiiiss")
-    
+
     hit_info = np.loadtxt(file, delimiter=',')
     # hit_info = np.loadtxt('rings.txt', delimiter=',')
-    labels = np.unique(hit_info[:,0])
-
+    labels = np.unique(hit_info[:, 0])
 
     if add_circle_fit_at_start:
-        organised_hit_info = {'p':[], 'pt':[], 'px':[], 'py':[], 'pz':[], 'pid':[], 'eta':[], 'track_x':[], 'track_y':[], 'track_z':[], 'n_hits':[], 'x':[], 'y':[], 'r':[], 'c_x':[], 'c_y':[]}
+        organised_hit_info = {'p': [], 'pt': [], 'px': [], 'py': [], 'pz': [], 'pid': [], 'eta': [], 'track_x': [
+        ], 'track_y': [], 'track_z': [], 'n_hits': [], 'x': [], 'y': [], 'r': [], 'c_x': [], 'c_y': []}
     else:
-        organised_hit_info = {'p':[], 'pt':[], 'px':[], 'py':[], 'pz':[], 'pid':[], 'eta':[], 'track_x':[], 'track_y':[], 'track_z':[], 'n_hits':[], 'x':[], 'y':[]}
+        organised_hit_info = {'p': [], 'pt': [], 'px': [], 'py': [], 'pz': [], 'pid': [], 'eta': [
+        ], 'track_x': [], 'track_y': [], 'track_z': [], 'n_hits': [], 'x': [], 'y': []}
 
     for label in labels:
 
-        hit_info_i = hit_info[np.where(hit_info[:,0]==label)][:,1:]
+        hit_info_i = hit_info[np.where(hit_info[:, 0] == label)][:, 1:]
 
-        events = np.unique(hit_info_i[:,0])
+        events = np.unique(hit_info_i[:, 0])
 
         for event in events:
 
-            hit_info_i_event = hit_info_i[np.where(hit_info_i[:,0]==event)][:,1:]
+            hit_info_i_event = hit_info_i[np.where(
+                hit_info_i[:, 0] == event)][:, 1:]
 
-            hit_info_i_event_info = hit_info_i_event[np.where(hit_info_i_event[:,0]==1)][:,1:]
-            hit_info_i_event_hits = hit_info_i_event[np.where(hit_info_i_event[:,0]==0)][:,1:]
+            hit_info_i_event_info = hit_info_i_event[np.where(
+                hit_info_i_event[:, 0] == 1)][:, 1:]
+            hit_info_i_event_hits = hit_info_i_event[np.where(
+                hit_info_i_event[:, 0] == 0)][:, 1:]
 
             organised_hit_info['p'].append(hit_info_i_event_info[0][0])
             organised_hit_info['pt'].append(hit_info_i_event_info[1][0])
@@ -47,13 +52,15 @@ def get_rings(file, add_circle_fit_at_start=True):
             organised_hit_info['track_y'].append(hit_info_i_event_info[8][0])
             organised_hit_info['track_z'].append(hit_info_i_event_info[9][0])
 
-            organised_hit_info['x'].append(hit_info_i_event_hits[:,0]/10.)
-            organised_hit_info['y'].append(hit_info_i_event_hits[:,1]/10.)
+            organised_hit_info['x'].append(hit_info_i_event_hits[:, 0]/10.)
+            organised_hit_info['y'].append(hit_info_i_event_hits[:, 1]/10.)
 
-            organised_hit_info['n_hits'].append(np.shape(hit_info_i_event_hits[:,1])[0])
+            organised_hit_info['n_hits'].append(
+                np.shape(hit_info_i_event_hits[:, 1])[0])
 
             if add_circle_fit_at_start:
-                ring_data = np.swapaxes(np.asarray([hit_info_i_event_hits[:,0]/10., hit_info_i_event_hits[:,1]/10.]),0,1)
+                ring_data = np.swapaxes(np.asarray(
+                    [hit_info_i_event_hits[:, 0]/10., hit_info_i_event_hits[:, 1]/10.]), 0, 1)
                 r, c = nsphere_fit(ring_data)
                 organised_hit_info['r'].append(r)
                 organised_hit_info['c_x'].append(c[0])
@@ -64,54 +71,88 @@ def get_rings(file, add_circle_fit_at_start=True):
     return organised_hit_info_df
 
 
+def rand5indices(row):
+
+    x_values = row['x']
+    y_values = row['y']
+
+    min_length = min(len(x_values), len(y_values))
+
+    random_indices = random.sample(range(min_length), 5)
+    row['x'] = [x_values[i] for i in random_indices]
+    row['y'] = [y_values[i] for i in random_indices]
+
+    return row
+
+
 def main():
     print("Im the BOSS")
     pd.set_option('display.max_columns', None)
     organised_hit_info_df = get_rings('example.txt')
-    
+
     train_df = organised_hit_info_df.query("r>0 and r<10 and n_hits >= 5")
-    train_df = train_df.loc[abs(train_df['pid']) == 211] # get dem pions
-    train_df = train_df.drop(columns = ['pid'], axis = 1)
- 
+    train_df = train_df.loc[abs(train_df['pid']) == 211]  # get dem pions
+    train_df = train_df.drop(columns=['pid'], axis=1)
+
     ####################### Calculate phi and log of p ######################
     ratio = train_df["px"]/train_df["py"]
     train_df["phi"] = 2*np.arctan(ratio)/np.pi
-    
+
     train_df["logp"] = np.log10(train_df["p"].values)
 
-    
     ####################### cut out shit ########################
     print(train_df.shape[0])
-    train_df = train_df.query("track_x>-0.25 and track_x<0.25 and track_y>-0.25 and track_y<0.25")
+    train_df = train_df.query(
+        "track_x>-0.25 and track_x<0.25 and track_y>-0.25 and track_y<0.25")
     print(train_df.shape[0])
     train_df = train_df.query("logp>3.4 and logp<4.5")
     print(train_df.shape[0])
     train_df = train_df.query("track_z>-200 and track_z<200")
     print(train_df.shape[0])
-    
-    
+
     ##################### Setup shit #######################
-    conds_df = train_df[['p','eta','phi','track_x','track_y','track_z', 'logp', 'n_hits']]
-    rnc_df = train_df[['r','c_x','c_y']]
-    hits_df = train_df[['x','y']]
-    
-    rand5 = hits_df.apply(lambda x: random.sample(x, 5), axis = 1)
-    sys.exit()
-    
-    print(rand5)
+    conds_df = train_df[['p', 'eta', 'phi', 'track_x',
+                         'track_y', 'track_z', 'logp']]
+    rnc_df = train_df[['r', 'c_x', 'c_y']]
+    hits_df = train_df[['x', 'y']]
+
     ################# normalize that shit ##################
     scaler = MinMaxScaler(feature_range=(-1, 1))
-    conds_df_normalized = pd.DataFrame(scaler.fit_transform(conds_df), columns=conds_df.columns)
+    conds_df_normalized = pd.DataFrame(
+        scaler.fit_transform(conds_df), columns=conds_df.columns)
+    
+    rnc_df_normalized = pd.DataFrame(
+        scaler.fit_transform(rnc_df), columns = rnc_df.columns)
     
     
     conds_df_normalized.reset_index(drop=True, inplace=True)
-    rnc_df.reset_index(drop=True, inplace=True)
-    rnc_data = pd.concat([conds_df_normalized, rnc_df], axis=1) #data for rnc GAN
+    rnc_df_normalized.reset_index(drop=True, inplace=True)
     
+    
+    #rand5 = pd.DataFrame(columns = ['x','y'])
+    rand5 = hits_df.apply(rand5indices, axis=1)  # select 5 hits
+
+    new_columns_x = ['x1', 'x2', 'x3', 'x4', 'x5']
+    new_columns_y = ['y1', 'y2', 'y3', 'y4', 'y5']
+
+    rand5 = pd.concat([
+        pd.DataFrame(rand5['x'].to_list(), columns=new_columns_x),
+        pd.DataFrame(rand5['y'].to_list(), columns=new_columns_y)
+    ], axis=1)
+
+    #rand5 = rand5.drop(['x', 'y'], axis=1)
+
+    max_val = np.abs(rand5).max().max()
+    
+
+    rand5_normalized = rand5/max_val
+    print(rand5_normalized.min().min())
+    print(rand5_normalized.max().max())
+    rand5_normalized.reset_index(drop=True, inplace=True)
     
     ############### plot some shit ##################
+
     """
-    
     for col in conds_df.columns:
         col_max = conds_df[col].max()
         col_min = conds_df[col].min()
@@ -147,15 +188,15 @@ def main():
     plt.title('eta')
     plt.show()
     """
-    ############################## bleddy is! ################## off by ~10E-5
-    
-    
+    # bleddy is! ################## off by ~10E-5
+
+    """
     with open('pions_rnc.pkl', 'wb') as file:
         pickle.dump(rnc_data, file)
-
+"""
 
     ############################# right lets deal with hit points ###################
-    
+    """
     max_len_x = max(len(lst) for lst in hits_df['x'])
     max_len_y = max(len(lst) for lst in hits_df['y'])
     
@@ -170,9 +211,19 @@ def main():
         pd.DataFrame(hits_df['x'].to_list(), columns=new_columns_x),
         pd.DataFrame(hits_df['y'].to_list(), columns=new_columns_y)
     ], axis=1)
+    """
     
-    #print(hits_df)
+    ######################### make the data files #####################################
+    rnc_data = pd.concat([conds_df_normalized, rnc_df_normalized],
+                         axis=1)  # data for rnc GAN
+    conds_rand5 = pd.concat([conds_df_normalized, rand5_normalized], 
+                           axis = 1) # data for conds gan
+    
+    rnc_data.to_pickle("rnc_data.pkl")
+    conds_rand5.to_pickle("conds_rand5.pkl")
+    rand5_normalized.to_pickle("rand5_normalized.pkl")
+    
+
 
 if __name__ == "__main__":
     main()
-
