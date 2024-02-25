@@ -111,20 +111,22 @@ def main():
     print(train_df.shape[0])
 
     ##################### Setup shit #######################
-    conds_df = train_df[['p', 'eta', 'phi', 'track_x',
+    conds_df = train_df[['eta', 'phi', 'track_x',
                          'track_y', 'track_z', 'logp']]
     #rnc_df = train_df[['r', 'c_x', 'c_y']]
     hits_df = train_df[['x', 'y']]
-
+   
     ################# normalize that shit ##################
-    scaler = MinMaxScaler(feature_range=(-1, 1))
+    conds_scaler = MinMaxScaler(feature_range=(-1, 1))
     conds_df_normalized = pd.DataFrame(
-        scaler.fit_transform(conds_df), columns=conds_df.columns)
+        conds_scaler.fit_transform(conds_df), columns=conds_df.columns)
     
     rnc_df_normalized = pd.DataFrame(columns = ['r', 'cx', 'cy'])
     r_df = train_df['r']
     c_df = train_df[['c_x','c_y']]
-    r_df_normalized = scaler.fit_transform(r_df.values.reshape(-1, 1))
+    
+    r_scaler = MinMaxScaler(feature_range=(-1, 1))
+    r_df_normalized = r_scaler.fit_transform(r_df.values.reshape(-1, 1))
     c_df.reset_index(drop = True, inplace = True)
 
     # Update 'r' column in rnc_df_normalized
@@ -144,7 +146,8 @@ def main():
     
     #rand5 = pd.DataFrame(columns = ['x','y'])
     rand5 = hits_df.apply(rand5indices, axis=1)  # select 5 hits
-
+    
+    
     new_columns_x = ['x1', 'x2', 'x3', 'x4', 'x5']
     new_columns_y = ['y1', 'y2', 'y3', 'y4', 'y5']
 
@@ -153,11 +156,27 @@ def main():
         pd.DataFrame(rand5['y'].to_list(), columns=new_columns_y)
     ], axis=1)
 
-    #rand5 = rand5.drop(['x', 'y'], axis=1)
-
-    max_val = np.abs(rand5).max().max()
+  
     
-
+    max_len_x = max(len(lst) for lst in hits_df['x'])
+    max_len_y = max(len(lst) for lst in hits_df['y'])
+    max_val_x = max(max(abs(lst)) for lst in train_df['x'])
+    max_val_y = max(max(abs(lst)) for lst in train_df['y'])
+    
+    
+    max_val = max(max_val_x, max_val_y)
+    print(max_val)
+    
+    scaling_dict = {"conds": conds_scaler, 
+                    "radius": r_scaler, 
+                    "hits": max_val,
+                    "centers": max_center}
+    
+    with open('scaling_pions.pkl', 'wb') as file:
+        pickle.dump(scaling_dict, file)
+        
+    sys.exit()
+    
     rand5_normalized = rand5/max_val
     print(rand5_normalized.min().min())
     print(rand5_normalized.max().max())
@@ -165,7 +184,7 @@ def main():
     
     ############### plot some shit ##################
 
-    """
+    
     for col in conds_df.columns:
         col_max = conds_df[col].max()
         col_min = conds_df[col].min()
@@ -184,9 +203,9 @@ def main():
     print("====================================")
     print(conds_df_normalized.shape[0])
 
-    """
+    
     #############################just check eta is right #########################
-    """
+    
     theta = np.arctan(((train_df['px']**2 + train_df['py']**2)**0.5)/train_df['pz'])
     
     psrap = -np.log(np.tan(theta/2))
@@ -200,13 +219,13 @@ def main():
     plt.hist(psrap, bins = 75)
     plt.title('eta')
     plt.show()
-    """
+    
     # bleddy is! ################## off by ~10E-5
 
     """
     with open('pions_rnc.pkl', 'wb') as file:
         pickle.dump(rnc_data, file)
-"""
+    """
 
     ############################# right lets deal with hit points ###################
     """
@@ -227,6 +246,8 @@ def main():
     """
     
     ######################### make the data files #####################################
+    """
+    
     rnc_data = pd.concat([conds_df_normalized, rnc_df_normalized],
                          axis=1)  # data for rnc GAN
     conds_rand5 = pd.concat([conds_df_normalized, rand5_normalized], 
@@ -236,6 +257,8 @@ def main():
     conds_rand5.to_pickle("conds_rand5.pkl")
     rand5_normalized.to_pickle("rand5_normalized.pkl")
     
+    print("pickle files made")
+    """
 
 
 if __name__ == "__main__":
