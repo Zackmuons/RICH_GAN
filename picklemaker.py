@@ -8,6 +8,7 @@ from skg.nsphere import nsphere_fit
 import pickle
 from sklearn.preprocessing import MinMaxScaler
 import random
+import torch
 
 
 def get_rings(file, add_circle_fit_at_start=True):
@@ -89,6 +90,9 @@ def main():
     print("Im the BOSS")
     pd.set_option('display.max_columns', None)
     organised_hit_info_df = get_rings('example.txt')
+    
+    organised_hit_info_df['n_hits'].plot(kind = 'hist')
+    plt.show()
 
     train_df = organised_hit_info_df.query("r>0 and r<10 and n_hits >= 5")
     train_df = train_df.loc[abs(train_df['pid']) == 211]  # get dem pions
@@ -99,7 +103,7 @@ def main():
     train_df["phi"] = 2*np.arctan(ratio)/np.pi
 
     train_df["logp"] = np.log10(train_df["p"].values)
-
+    
     ####################### cut out shit ########################
     print(train_df.shape[0])
     train_df = train_df.query(
@@ -110,12 +114,16 @@ def main():
     train_df = train_df.query("track_z>-200 and track_z<200")
     print(train_df.shape[0])
 
+    
     ##################### Setup shit #######################
     conds_df = train_df[['eta', 'phi', 'track_x',
                          'track_y', 'track_z', 'logp']]
     #rnc_df = train_df[['r', 'c_x', 'c_y']]
     hits_df = train_df[['x', 'y']]
-   
+    all_hits = train_df[['x','y', 'n_hits']]
+    print(all_hits['n_hits'].min())
+    all_hits.reset_index(drop=True,inplace=True)
+    
     ################# normalize that shit ##################
     conds_scaler = MinMaxScaler(feature_range=(-1, 1))
     conds_df_normalized = pd.DataFrame(
@@ -158,14 +166,35 @@ def main():
 
   
     
-    max_len_x = max(len(lst) for lst in hits_df['x'])
-    max_len_y = max(len(lst) for lst in hits_df['y'])
+    max_len_x = max(len(lst) for lst in all_hits['x'])
+    max_len_y = max(len(lst) for lst in all_hits['y'])
     max_val_x = max(max(abs(lst)) for lst in train_df['x'])
     max_val_y = max(max(abs(lst)) for lst in train_df['y'])
-    
-    
     max_val = max(max_val_x, max_val_y)
-    print(max_val)
+    
+    
+    
+    # Create new columns for 'x' and 'y'
+    new_columns_x = [f'x{i}' for i in range(max_len_x)]
+    new_columns_y = [f'y{i}' for i in range(max_len_y)]
+    
+    x_columns = pd.DataFrame(all_hits['x'].to_list(), columns=new_columns_x)
+    y_columns = pd.DataFrame(all_hits['y'].to_list(), columns=new_columns_y)
+
+    all_hits = pd.concat([ x_columns, y_columns, all_hits.drop(['x', 'y'], axis=1)], axis=1)
+    all_hits.fillna(0, inplace= True)
+    print(all_hits)
+    
+    print(all_hits['n_hits'].min())
+    all_hits = all_hits/max_val
+    all_hits['n_hits'] = all_hits['n_hits']*max_val
+    #all_hits['n_hits'] = all_hits.apply(lambda row: row[:88].count(), axis = 1)
+    #all_hits.iloc[:,:] = all_hits.iloc[:,:].fillna(0)
+    #print(all_hits)
+    
+    all_hits['n_hits'].plot(kind = 'hist')
+    plt.show()
+    
     
     scaling_dict = {"conds": conds_scaler, 
                     "radius": r_scaler, 
@@ -175,7 +204,7 @@ def main():
     with open('scaling_pions.pkl', 'wb') as file:
         pickle.dump(scaling_dict, file)
         
-    sys.exit()
+    
     
     rand5_normalized = rand5/max_val
     print(rand5_normalized.min().min())
@@ -205,7 +234,7 @@ def main():
 
     
     #############################just check eta is right #########################
-    
+    """
     theta = np.arctan(((train_df['px']**2 + train_df['py']**2)**0.5)/train_df['pz'])
     
     psrap = -np.log(np.tan(theta/2))
@@ -219,7 +248,7 @@ def main():
     plt.hist(psrap, bins = 75)
     plt.title('eta')
     plt.show()
-    
+    """
     # bleddy is! ################## off by ~10E-5
 
     """
@@ -246,19 +275,25 @@ def main():
     """
     
     ######################### make the data files #####################################
-    """
+    
     
     rnc_data = pd.concat([conds_df_normalized, rnc_df_normalized],
                          axis=1)  # data for rnc GAN
     conds_rand5 = pd.concat([conds_df_normalized, rand5_normalized], 
                            axis = 1) # data for conds gan
     
-    rnc_data.to_pickle("rnc_data.pkl")
-    conds_rand5.to_pickle("conds_rand5.pkl")
-    rand5_normalized.to_pickle("rand5_normalized.pkl")
+    rnc_data =torch.Tensor(rnc_data.values)
+    conds_rand5 = torch.Tensor(conds_rand5.values)
+    rand5_normalized = torch.Tensor(rand5_normalized.values)
+    all_hits_tensor = torch.Tensor(all_hits.values)
+    
+    torch.save(all_hits_tensor, "all_hits.pt")
+    torch.save(rnc_data, "rnc_data.pt")
+    torch.save(conds_rand5,"conds_rand5.pt")
+    torch.save(rand5_normalized,"rand5_normalized.pt")
     
     print("pickle files made")
-    """
+    
 
 
 if __name__ == "__main__":
