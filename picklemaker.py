@@ -9,6 +9,7 @@ import pickle
 from sklearn.preprocessing import MinMaxScaler
 import random
 import torch
+import seaborn as sns
 
 
 def get_rings(file, add_circle_fit_at_start=True):
@@ -96,10 +97,10 @@ def main():
 
     train_df = organised_hit_info_df.query("r>0 and r<10 and n_hits >= 5")
     train_df = train_df.loc[abs(train_df['pid']) == 211]  # get dem pions
-    train_df = train_df.drop(columns=['pid'], axis=1)
+    #train_df = train_df.drop(columns=['pid'], axis=1)
 
     ####################### Calculate phi and log of p ######################
-    ratio = train_df["px"]/train_df["py"]
+    ratio = train_df["py"]/train_df["px"]
     train_df["phi"] = 2*np.arctan(ratio)/np.pi
 
     train_df["logp"] = np.log10(train_df["p"].values)
@@ -114,7 +115,10 @@ def main():
     train_df = train_df.query("track_z>-200 and track_z<200")
     print(train_df.shape[0])
 
-    
+    correlation_df = train_df[['p', 'logp','eta','phi','pt',
+                               'px', 'py', 'pz',
+                               'track_x', 'track_y', 'track_z', 
+                               'n_hits', 'r', 'c_x', 'c_y']]
     ##################### Setup shit #######################
     conds_df = train_df[['eta', 'phi', 'track_x',
                          'track_y', 'track_z', 'logp']]
@@ -144,6 +148,7 @@ def main():
     c_df = c_df/max_center
     rnc_df_normalized['r'] = r_df_normalized
     rnc_df_normalized[['cx','cy']] = c_df
+    rnc_df_normalized['pid'] = train_df['pid']
     #print(train_df[['r','c_x','c_y']])
     #print(rnc_df_normalized)
 
@@ -153,7 +158,7 @@ def main():
     
     
     #rand5 = pd.DataFrame(columns = ['x','y'])
-    rand5 = hits_df.apply(rand5indices, axis=1)  # select 5 hits
+    rand5 = hits_df.apply(rand5indices, axis=1)
     
     
     new_columns_x = ['x1', 'x2', 'x3', 'x4', 'x5']
@@ -164,7 +169,19 @@ def main():
         pd.DataFrame(rand5['y'].to_list(), columns=new_columns_y)
     ], axis=1)
 
-  
+    
+    rand5_10 = rand5
+    
+    for i in range(10):
+        new5 = hits_df.apply(rand5indices, axis=1)
+        new5 = pd.concat([
+            pd.DataFrame(new5['x'].to_list(), columns=new_columns_x),
+            pd.DataFrame(new5['y'].to_list(), columns=new_columns_y)
+        ], axis=1)
+        
+        rand5_10 = pd.concat([rand5_10,new5], axis = 0, ignore_index=True)
+    
+    
     
     max_len_x = max(len(lst) for lst in all_hits['x'])
     max_len_y = max(len(lst) for lst in all_hits['y'])
@@ -207,12 +224,20 @@ def main():
     
     
     rand5_normalized = rand5/max_val
+    rand5_10_normalized = rand5_10/max_val
     print(rand5_normalized.min().min())
     print(rand5_normalized.max().max())
     rand5_normalized.reset_index(drop=True, inplace=True)
     
     ############### plot some shit ##################
-
+    """
+    x_s = train_df['c_x'].values
+    y_s = train_df['c_y'].values
+    plt.plot(x_s,y_s,'.')
+    plt.show()
+    
+    
+    plt.plot
     
     for col in conds_df.columns:
         col_max = conds_df[col].max()
@@ -232,7 +257,7 @@ def main():
     print("====================================")
     print(conds_df_normalized.shape[0])
 
-    
+    """
     #############################just check eta is right #########################
     """
     theta = np.arctan(((train_df['px']**2 + train_df['py']**2)**0.5)/train_df['pz'])
@@ -249,6 +274,28 @@ def main():
     plt.title('eta')
     plt.show()
     """
+    """
+    sns.set_theme(style="white")
+
+
+
+    # Compute the correlation matrices
+    corr = correlation_df.corr()
+
+    # Generate a mask for the upper triangle
+    mask = np.triu(np.ones_like(corr, dtype=bool))
+
+    # Set up the matplotlib figure
+    f, ax = plt.subplots(1, figsize=(11, 9))
+
+    # Generate a custom diverging colormap
+    cmap = sns.diverging_palette(230, 20, as_cmap=True)
+
+    # Draw the heatmap with the mask and correct aspect ratio
+    sns.heatmap(corr, cmap=cmap, vmax=.3, center=0,
+                square=True, linewidths=.5, cbar_kws={"shrink": .5})
+    """
+    
     # bleddy is! ################## off by ~10E-5
 
     """
@@ -282,11 +329,14 @@ def main():
     conds_rand5 = pd.concat([conds_df_normalized, rand5_normalized], 
                            axis = 1) # data for conds gan
     
-    rnc_data =torch.Tensor(rnc_data.values)
+    rand5_10_tensor = torch.Tensor(rand5_10_normalized.values)
+    rnc_data = torch.Tensor(rnc_data.values)
     conds_rand5 = torch.Tensor(conds_rand5.values)
     rand5_normalized = torch.Tensor(rand5_normalized.values)
     all_hits_tensor = torch.Tensor(all_hits.values)
     
+    print(all_hits_tensor)
+    torch.save(rand5_10_tensor, "rand5_10.pt")
     torch.save(all_hits_tensor, "all_hits.pt")
     torch.save(rnc_data, "rnc_data.pt")
     torch.save(conds_rand5,"conds_rand5.pt")
