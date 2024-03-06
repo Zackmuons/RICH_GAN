@@ -334,15 +334,17 @@ def main():
     conds_rand5 = torch.Tensor(conds_rand5.values)
     rand5_normalized = torch.Tensor(rand5_normalized.values)
     all_hits_tensor = torch.Tensor(all_hits.values)
+    master_df = torch.cat((rnc_data, all_hits_tensor), axis=1)
     
-    print(all_hits_tensor)
+    
     torch.save(rand5_10_tensor, "rand5_10.pt")
     torch.save(all_hits_tensor, "all_hits.pt")
     torch.save(rnc_data, "rnc_data.pt")
     torch.save(conds_rand5,"conds_rand5.pt")
     torch.save(rand5_normalized,"rand5_normalized.pt")
+    torch.save(master_df, "master_df.pt")
     
-    print("pickle files made")
+    print("Shalom, I make for you tensor torches")
     
 
 
