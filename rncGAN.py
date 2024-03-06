@@ -7,28 +7,34 @@ from torch import nn
 import matplotlib.pyplot as plt
 import time
 import pickle
+#from sklearn.preprocessing import MinMaxScaler
+
 
 torch.set_default_dtype(torch.float32)
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cuda:5' if torch.cuda.is_available() else 'cpu'
 cpu = 'cpu'
 
 print('torch version:',torch.__version__)
 print('device:', device)
 
-with open('rnc_data.pkl', 'rb') as file:
-    train_data = pickle.load(file)
 
-train_tensor = torch.Tensor(train_data.values)
-print(train_tensor.size())
+train_data = torch.load("rnc_data.pt").to(device)
+train_tensor = train_data
+print(train_data)
 
+with open("scaling_pions.pkl", 'rb') as file:
+    scaling_dict = pickle.load(file)
 
+#r_scaler = scaling_dict["radius"]
+#conds_scaler = scaling_dict['conds']
 
 train_size = train_tensor.size()[0]
+train_tensor = train_tensor[:,:-1]
 
 
-points = 3
+targets = 3
 conds = 6
-noise_size = points
+noise_size = targets
 
 train_conds = train_tensor[:,:conds]
 train_targets = train_tensor[:,conds:]
@@ -37,16 +43,16 @@ class Discriminator(nn.Module):
     def __init__(self):
         super().__init__()
         self.model = nn.Sequential(
-        nn.Linear(points + conds, 128),
+        nn.Linear(targets + conds, 128),
         nn.LeakyReLU(0.2, inplace=True),
         nn.Dropout(0.3),
         nn.Linear(128, 128),
-        nn.LeakyReLU(0.2, inplace=True),
-        nn.Dropout(0.3),
-        nn.Linear(128, 128),
-        nn.LeakyReLU(0.2, inplace=True),
-        nn.Dropout(0.3),
-        nn.Linear(128, 128),
+        # nn.LeakyReLU(0.2, inplace=True),
+        # nn.Dropout(0.3),
+        # nn.Linear(128, 128),
+        # nn.LeakyReLU(0.2, inplace=True),
+        # nn.Dropout(0.3),
+        # nn.Linear(128, 128),
         nn.LeakyReLU(0.2, inplace=True),
         nn.Dropout(0.3),
         nn.Linear(128, 128),
@@ -64,17 +70,17 @@ class Generator(nn.Module):
     def __init__(self):
         super().__init__()
         self.model = nn.Sequential(
-            nn.Linear(points+conds, 128),
+            nn.Linear(targets+conds, 128),
             nn.ReLU(),
             nn.Linear(128, 128),
+            # nn.ReLU(),
+            # nn.Linear(128, 128),
+            # nn.ReLU(),
+            # nn.Linear(128, 128),
+            # nn.ReLU(),
+            # nn.Linear(128, 128),
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, points),
+            nn.Linear(128, targets),
             )
 
     def forward(self, x):
@@ -85,8 +91,8 @@ generator = Generator().to(device)
 
 # define hyperparameters
 
-lr = 1E-4
-num_epochs = 5000
+lr = 5E-5
+num_epochs = 100000
 loss_function = nn.BCELoss()
 
 optimizer_discriminator = torch.optim.Adam(discriminator.parameters(), lr=lr)
@@ -95,12 +101,11 @@ optimizer_generator = torch.optim.Adam(generator.parameters(), lr=lr)
 counter = 0
 loss_list = torch.Tensor([[counter, 0.7, 0.7]])
 
-"""
 # Load discriminator and generator models
 
-discriminator.load_state_dict(torch.load('D_CGAN1.pth'))
-generator.load_state_dict(torch.load('G_CGAN1.pth'))
-"""
+discriminator.load_state_dict(torch.load('D_rnc1.pth'))
+generator.load_state_dict(torch.load('G_rnc1.pth'))
+
 
 t=time.time()
 for epoch in range(num_epochs):
@@ -116,10 +121,13 @@ for epoch in range(num_epochs):
     generated_data = torch.cat([train_conds, generated_samples], dim = 1)
     #print(generated_data.size())
     
-    generated_samples_labels = torch.zeros((train_size,1))
+    
+    generated_samples_labels = torch.zeros((train_size,1)).to(device)
     real_samples_labels = torch.ones((train_size,1)).to(device)
     
-
+    train_tensor = torch.cat([train_conds, train_targets], axis =1)
+    #print(train_tensor.size())
+    #print(generated_data.size())
     all_samples = torch.cat((train_tensor, generated_data)).to(device)
     all_samples_labels = torch.cat((real_samples_labels, generated_samples_labels)).to(device)
 
@@ -166,61 +174,170 @@ for epoch in range(num_epochs):
     #print(loss_entry)
 
     counter += 1
-    print("epoch: {} lossD: {} lossG: {}".format(epoch, loss_d, loss_g))
+    #print("epoch: {} lossD: {} lossG: {}".format(epoch, loss_d, loss_g))
     # Show loss
 
-    if epoch % 5 == 1 and epoch !=1:
+    if (epoch % 100 == 0 and epoch !=0) or epoch == num_epochs-1:
         e = epoch
-        print(f"Epoch: {e} loss D: {loss_discriminator}")
-        print(f"Epoch: {e} loss G: {loss_generator}")
+        print("Epoch: {} loss D: {}".format(e, loss_discriminator))
+        print("Epoch: {} loss G: {}".format(e, loss_generator))
         t_e = 100*(time.time()-t)/epoch
         print("Epoch: {} time: {}".format(epoch,t_e))
-
-        
-        
-        print(loss_list)
-        loss_list = loss_list.to(cpu).numpy()
-        plt.figure(figsize=(16,16))
-        plt.subplot(2,2,1)
-        #plt.title.set_text("Discriminator loss")
-        plt.plot(loss_list[:,0], loss_list[:,1])
-        plt.subplot(2,2,2)
-        #plt.title.set_text("Generator loss")
-        plt.plot(loss_list[:,0], loss_list[:,2])
-        
-        loss_list = torch.tensor(loss_list).to(device)
         
         noise_vector = torch.randn(train_size, noise_size).to(device)
         latent_space_samples = torch.cat([train_conds, noise_vector], dim = 1)
-        #generate samples    
         generated_points = generator(latent_space_samples).to(device)
         
+        # Assuming train_targets and generated_points are both tensors with 3 rows and N columns
+        train_targets_first_column = train_targets[:, 0]
+        generated_points_first_column = generated_points[:, 0]
+        
+        # Calculate the difference
+        difference =  generated_points_first_column - train_targets_first_column
+        
+        # Create a figure and two subplots
+        fig, axes = plt.subplots(2, 2, figsize=(8, 6))
+        
+        # Plot the first histogram (Radius Difference)
+        axes[0,0].hist(difference.cpu().detach().numpy(), bins=50)
+        axes[0,0].set_xlabel('Difference')
+        axes[0,0].set_ylabel('Frequency')
+        axes[0,0].set_title('Radius Difference')
+        
+        # Assuming train_targets and generated_points are both tensors with 3 rows and N columns
+        train_targets_second_row = train_targets[:,1]
+        generated_points_second_row = generated_points[:,1]
+        train_targets_third_row = train_targets[:,2]
+        generated_points_third_row = generated_points[:,2]
+        
+        # Calculate the differences
+        difference_second_row = train_targets_second_row - generated_points_second_row
+        difference_third_row = train_targets_third_row - generated_points_third_row
+        
+        # Add the differences in quadrature
+        squared_sum = difference_second_row**2 + difference_third_row**2
+        rooted_sum = torch.sqrt(squared_sum)
+        
+        # Plot the second histogram (Centres Difference)
+        axes[0,1].hist(rooted_sum.cpu().detach().numpy(), bins=50)
+        axes[0,1].set_xlabel('Rooted Sum of Differences')
+        axes[0,1].set_ylabel('Frequency')
+        axes[0,1].set_title('Centres Difference')
         
         
-        points = generated_points.detach().to(cpu)
-        points1 = np.array(points[510])
-        xs1 = points1[:5]
-        ys1 = points1[5:]
-        points2 = np.array(train_targets[510])
-        xs2 = points2[:5]
-        ys2 = points2[5:]
-        
-        #print(xs1)
-        #print(ys1)
-        plt.subplot(2,2,3)
-        plt.xlim(-1,1)
-        plt.ylim(-1,1)
         
         
-        plt.plot(xs1, ys1, ".")
+        #print(loss_list)
+        loss_plot = loss_list.to(cpu).numpy()
+        # plt.figure(figsize=(16,16))
+        # plt.subplot(2,2,1)
+        # plt.title.set_text("Discriminator loss")
+        # plt.plot(loss_list[:,0], loss_plot[:,1])
+        # plt.subplot(2,2,2)
+        # plt.title.set_text("Generator loss")
+        # plt.plot(loss_list[:,0], loss_plot[:,2])
         
+        axes[1,0].plot(loss_list[:,0], loss_plot[:,1])
+        axes[1,0].set_title('Discriminator loss')
+        axes[1,0].set_ylabel('Loss')
+        axes[1,0].set_xlabel('Epoch')
         
-        plt.subplot(2,2,4)
-        plt.xlim(-1,1)
-        plt.ylim(-1,1)
+        axes[1,1].plot(loss_list[:,0], loss_plot[:,2])
+        axes[1,1].set_title('Generator loss')
+        axes[1,1].set_ylabel('Loss')
+        axes[1,1].set_xlabel('Epoch')
+        # Adjust layout
+        plt.tight_layout()
         
-        plt.plot(xs2, ys2, ".")
+        # Show the plot
         plt.show()
+        # loss_list = torch.tensor(loss_list).to(device)
+        
+        # noise_vector = torch.randn(train_size, noise_size).to(device)
+        # latent_space_samples = torch.cat([train_conds, noise_vector], dim = 1)
+        # #generate samples    
+        # generated_points = generator(latent_space_samples).to(device)
+        
+        
+        
+        # points = generated_points.detach().to(cpu)
+        # points1 = np.array(points[510])
+        # xs1 = points1[:5]
+        # ys1 = points1[5:]
+        # points2 = np.array(train_targets[510])
+        # xs2 = points2[:5]
+        # ys2 = points2[5:]
+        
+        # #print(xs1)
+        # #print(ys1)
+        # plt.subplot(2,2,3)
+        # plt.xlim(-1,1)
+        # plt.ylim(-1,1)
+        
+        
+        # plt.plot(xs1, ys1, ".")
+        
+        
+        # plt.subplot(2,2,4)
+        # plt.xlim(-1,1)
+        # plt.ylim(-1,1)
+        
+        # plt.plot(xs2, ys2, ".")
+        #plt.show()
         #plt.savefig(f'testset_{e}.png')
-        plt.close('all')
+        # plt.close('all')
+        """
+        noise_vector = torch.randn(train_size, noise_size).to(device)
+        latent_space_samples = torch.cat([train_conds, noise_vector], dim = 1)
+        generated_points = generator(latent_space_samples).to(cpu).detach().numpy()
 
+
+        logp = train_conds[:,-1].to(cpu).numpy()
+        logp = (logp/2)+3.97
+        momentum = np.exp(logp)
+        radii_gen = generated_points[:,0]
+
+        radii_gen = r_scaler.inverse_transform(radii_gen.reshape(-1,1))
+        plt.plot(momentum, radii_gen, '.')
+        plt.show()
+
+        radii_re = train_targets[:,0].to(cpu).numpy()
+        radii_re = r_scaler.inverse_transform(radii_re.reshape(-1,1))
+        plt.plot(momentum, radii_re, '.')
+        plt.show()
+        """
+# Create a dictionary to save GAN information
+
+
+gan_info = {
+        'discriminator_state_dict': discriminator.state_dict(),
+        'generator_state_dict': generator.state_dict(),
+        }
+# Save discriminator and generator models
+"""
+noise_vector = torch.randn(train_size, noise_size).to(device)
+latent_space_samples = torch.cat([train_conds, noise_vector], dim = 1)
+generated_points = generator(latent_space_samples).to(cpu).detach().numpy()
+
+
+logp = train_conds[:,-1].to(cpu).numpy()
+logp = (logp/2)+3.97
+momentum = np.exp(logp)
+radii_gen = generated_points[:,0]
+
+radii_gen = r_scaler.inverse_transform(radii_gen.reshape(-1,1))
+plt.plot(momentum, radii_gen, '.')
+plt.show()
+
+radii_re = train_targets[:,0].to(cpu).numpy()
+radii_re = r_scaler.inverse_transform(radii_re.reshape(-1,1))
+plt.plot(momentum, radii_re, '.')
+plt.show()
+"""
+
+
+
+torch.save(discriminator.state_dict(), 'D_rnc1.pth')
+torch.save(generator.state_dict(), 'G_rnc1.pth')
+# Save GAN information
+torch.save(gan_info, 'gan_info_rnc1.2e5.pth')
