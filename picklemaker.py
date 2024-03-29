@@ -201,7 +201,7 @@ def main():
     with open('centered_scalar.pkl', 'wb') as file:
         pickle.dump(centered_scalar, file)
         
-    sys.exit()
+    #sys.exit()
     
         
     
@@ -223,7 +223,7 @@ def main():
     centered_hits = pd.concat([ x_columns, y_columns, centered_hits.drop(['x', 'y'], axis=1)], axis=1)
     centered_hits.fillna(0, inplace= True)
     print(centered_hits)
-    sys.exit()
+    #sys.exit()
     
     
     """
@@ -419,10 +419,18 @@ def main():
     
 
     plt.subplots(1, figsize =(8,6))
-    plt.plot(train_df["p"].values,train_df["n_hits"].values,'.')
+    plt.plot(train_df["track_z"].values,train_df["n_hits"].values,'.')
     
     plt.show()
-    sys.exit()
+    plt.subplots(1, figsize =(8,6))
+    plt.plot(train_df["track_x"].values,train_df["n_hits"].values,'.')
+    
+    plt.show()
+    plt.subplots(1, figsize =(8,6))
+    plt.plot(train_df["track_y"].values,train_df["n_hits"].values,'.')
+    
+    plt.show()
+    #sys.exit()
 
 
     # Compute the correlation matrices
@@ -484,7 +492,13 @@ def main():
     rand5_normalized = torch.Tensor(rand5_normalized.values)
     all_hits_tensor = torch.Tensor(all_hits.values)
     
-    print(all_hits_tensor)
+    RICH_df = pd.concat([conds_df_normalized,rnc_df_normalized ,all_hits], axis =1)
+    RICH_tensor = torch.Tensor(RICH_df.values)
+    
+    
+    print(RICH_df)
+    RICH_df.to_pickle("master_df.pkl")
+    torch.save(RICH_tensor, "master_tensor.pt")
     torch.save(rand5_10_tensor, "rand5_10.pt")
     torch.save(all_hits_tensor, "all_hits.pt")
     torch.save(rnc_data, "rnc_data.pt")
