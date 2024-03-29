@@ -100,8 +100,8 @@ def main():
     #train_df = train_df.drop(columns=['pid'], axis=1)
 
     ####################### Calculate phi and log of p ######################
-    ratio = train_df["py"]/train_df["px"]
-    train_df["phi"] = 2*np.arctan(ratio)/np.pi
+    
+    train_df["phi"] = np.arctan2(train_df["py"],train_df["px"])
 
     train_df["logp"] = np.log10(train_df["p"].values)
     
@@ -127,20 +127,132 @@ def main():
     all_hits = train_df[['x','y', 'n_hits']]
     print(all_hits['n_hits'].min())
     all_hits.reset_index(drop=True,inplace=True)
+    df = train_df
+    
+    fig , axes = plt.subplots(2,2, figsize=(8,8))
+    axes[0,0].plot(df['phi'],df['c_y'],'.')
+    axes[0,1].plot(df['phi'],df['c_x'],'.')
+    axes[1,0].plot(df['eta'],df['c_y'],'.')
+    axes[1,1].plot(df['eta'],df['c_x'],'.')
+    plt.show()
+   
+    
+    
     
     ################# normalize that shit ##################
+    centered_hits = train_df[['x', 'y', 'c_x', 'c_y', 'r', 'n_hits']]
+    centered_hits.reset_index(drop=True, inplace=True)
+    centered_hits['x'] = centered_hits.apply(lambda row: row['x'] -  row['c_x'] , axis = 1)
+    centered_hits['y'] = centered_hits.apply(lambda row: row['y'] -  row['c_y'] , axis = 1)
+    
+    print(centered_hits['n_hits'].sum())
+    
+    
+    
+    
+        
+    def explode_rows(row):
+        x_values = row['x']
+        y_values = row['y']
+        r = row['r']
+        c_x = row['c_x']
+        c_y = row['c_y']
+        n_hits = row['n_hits']
+        
+        new_rows = []
+        for i in range(len(x_values)):
+            new_rows.append({'x': x_values[i], 'y': y_values[i], 'r': r, 'c_x' : c_x, 'c_y' : c_y, 'n_hits' : n_hits, 'index': 2*((i)/n_hits)-1})
+        return new_rows
+
+    # Apply the function to each row and concatenate the results
+    new_rows = []
+    for _, row in centered_hits.iterrows():
+        new_rows.extend(explode_rows(row))
+    
+    # Create a new DataFrame with exploded rows
+    c_df = pd.DataFrame(new_rows)
+    c_df.reset_index(drop=True, inplace=True)
+
+
+    max_hit = max(c_df['x'].max(), c_df['y'].max())
+    max_center = max(c_df['c_x'].max(), c_df['c_y'].max())
+    c_df[['x','y']] = c_df[['x', 'y']]/max_hit
+    c_df[['c_x','c_y']] = c_df[['c_x', 'c_y']]/max_center
+    radius_scalar = MinMaxScaler(feature_range=(-1,1))
+    c_df['r'] = radius_scalar.fit_transform(c_df['r'].values.reshape(-1,1))
+    n_hits_scalar = MinMaxScaler(feature_range=(-1,1))
+    c_df['n_hits'] = n_hits_scalar.fit_transform(c_df['n_hits'].values.reshape(-1,1))
+    print(c_df)
+    
+    center_tensor = torch.Tensor(c_df.values)
+    torch.save(center_tensor, "centered_hits.pt")
+    
+    c_df['residual'] = np.sqrt(c_df['x']**2 + c_df['y']**2)-c_df['r']
+    
+    fig, axes = plt.subplots(1, figsize= (8,8))
+    axes.hist(c_df['residual'], bins = 50)
+    plt.show()
+    
+    centered_scalar = {"radius": radius_scalar,
+                       "max_hit": max_hit,
+                       "max_center": max_center,
+                       "n_hits": n_hits_scalar}
+    
+    with open('centered_scalar.pkl', 'wb') as file:
+        pickle.dump(centered_scalar, file)
+        
+    sys.exit()
+    
+        
+    
+    max_len_x = max(len(lst) for lst in centered_hits['x'])
+    max_len_y = max(len(lst) for lst in centered_hits['y'])
+    max_val_x = max(max(abs(lst)) for lst in centered_hits['x'])
+    max_val_y = max(max(abs(lst)) for lst in centered_hits['y'])
+    max_val = max(max_val_x, max_val_y)
+    
+    
+    
+    # Create new columns for 'x' and 'y'
+    new_columns_x = [f'x{i}' for i in range(max_len_x)]
+    new_columns_y = [f'y{i}' for i in range(max_len_y)]
+    
+    x_columns = pd.DataFrame(centered_hits['x'].to_list(), columns=new_columns_x)
+    y_columns = pd.DataFrame(centered_hits['y'].to_list(), columns=new_columns_y)
+
+    centered_hits = pd.concat([ x_columns, y_columns, centered_hits.drop(['x', 'y'], axis=1)], axis=1)
+    centered_hits.fillna(0, inplace= True)
+    print(centered_hits)
+    sys.exit()
+    
+    
+    """
+    centered_hits['max'] = centered_hits.apply(lambda row: min(np.sqrt(row['x']**2 + row['y']**2)) , axis = 1) 
+    centered_hits['frac'] = centered_hits['max']/centered_hits['r']
+    
+    fig,axes = plt.subplots(1, figsize=(8,8))
+    for i in range(6036):
+        axes.plot(centered_hits['x'].values[i],centered_hits['y'].values[i], '.')
+    plt.show()
+    sys.exit()
+    """
+    
     conds_scaler = MinMaxScaler(feature_range=(-1, 1))
     conds_df_normalized = pd.DataFrame(
         conds_scaler.fit_transform(conds_df), columns=conds_df.columns)
     
-    rnc_df_normalized = pd.DataFrame(columns = ['r', 'cx', 'cy'])
+    rnc_df_normalized = pd.DataFrame(columns = ['r', 'cx', 'cy','n_hits'])
     r_df = train_df['r']
     c_df = train_df[['c_x','c_y']]
+    n_df = train_df['n_hits']
     
     r_scaler = MinMaxScaler(feature_range=(-1, 1))
     r_df_normalized = r_scaler.fit_transform(r_df.values.reshape(-1, 1))
     c_df.reset_index(drop = True, inplace = True)
-
+    
+    n_scaler = MinMaxScaler(feature_range=(-1,1))
+    n_df_normalized = n_scaler.fit_transform(n_df.values.reshape(-1,1))
+    
     # Update 'r' column in rnc_df_normalized
     rnc_df_normalized['r'] = r_df_normalized.flatten()
     max_center = np.abs(c_df).max().max()
@@ -148,7 +260,11 @@ def main():
     c_df = c_df/max_center
     rnc_df_normalized['r'] = r_df_normalized
     rnc_df_normalized[['cx','cy']] = c_df
-    rnc_df_normalized['pid'] = train_df['pid']
+    rnc_df_normalized['n_hits'] = n_df_normalized
+    
+    print(rnc_df_normalized)
+
+    
     #print(train_df[['r','c_x','c_y']])
     #print(rnc_df_normalized)
 
@@ -171,6 +287,8 @@ def main():
 
     
     rand5_10 = rand5
+    
+    
     
     for i in range(10):
         new5 = hits_df.apply(rand5indices, axis=1)
@@ -216,7 +334,8 @@ def main():
     scaling_dict = {"conds": conds_scaler, 
                     "radius": r_scaler, 
                     "hits": max_val,
-                    "centers": max_center}
+                    "centers": max_center,
+                    "n_scaler": n_scaler}
     
     with open('scaling_pions.pkl', 'wb') as file:
         pickle.dump(scaling_dict, file)
@@ -230,6 +349,23 @@ def main():
     rand5_normalized.reset_index(drop=True, inplace=True)
     
     ############### plot some shit ##################
+    
+    fig, axes = plt.subplots(2,2, figsize = (8,6))
+    
+    axes[0,0].plot(train_df["phi"] ,train_df['c_x']  ,'.')
+    axes[0,0].set_title("phi c_x")
+    axes[0,1].plot(train_df["phi"], train_df['c_y'], '.')
+    axes[0,1].set_title("phi c_y")
+    axes[1,0].plot(train_df['py'], train_df['c_x'], '.')
+    axes[1,0].set_title('eta c_x')
+    axes[1,1].plot(train_df['py'], train_df['c_y'], '.')
+    axes[1,1].set_title('eta c_y')
+    plt.show()
+    
+    fig, axes = plt.subplots(1, figsize= (8,6))
+    axes.plot(x_columns, y_columns, '.')
+    plt.show()
+    
     """
     x_s = train_df['c_x'].values
     y_s = train_df['c_y'].values
@@ -274,9 +410,19 @@ def main():
     plt.title('eta')
     plt.show()
     """
-    """
+    
     sns.set_theme(style="white")
 
+
+    xs = train_df['x'].values
+    ys = train_df['y'].values
+    
+
+    plt.subplots(1, figsize =(8,6))
+    plt.plot(train_df["p"].values,train_df["n_hits"].values,'.')
+    
+    plt.show()
+    sys.exit()
 
 
     # Compute the correlation matrices
@@ -294,7 +440,7 @@ def main():
     # Draw the heatmap with the mask and correct aspect ratio
     sns.heatmap(corr, cmap=cmap, vmax=.3, center=0,
                 square=True, linewidths=.5, cbar_kws={"shrink": .5})
-    """
+    
     
     # bleddy is! ################## off by ~10E-5
 
@@ -324,6 +470,9 @@ def main():
     ######################### make the data files #####################################
     
     
+    
+    
+    
     rnc_data = pd.concat([conds_df_normalized, rnc_df_normalized],
                          axis=1)  # data for rnc GAN
     conds_rand5 = pd.concat([conds_df_normalized, rand5_normalized], 
@@ -334,17 +483,15 @@ def main():
     conds_rand5 = torch.Tensor(conds_rand5.values)
     rand5_normalized = torch.Tensor(rand5_normalized.values)
     all_hits_tensor = torch.Tensor(all_hits.values)
-    master_df = torch.cat((rnc_data, all_hits_tensor), axis=1)
     
-    
+    print(all_hits_tensor)
     torch.save(rand5_10_tensor, "rand5_10.pt")
     torch.save(all_hits_tensor, "all_hits.pt")
     torch.save(rnc_data, "rnc_data.pt")
     torch.save(conds_rand5,"conds_rand5.pt")
     torch.save(rand5_normalized,"rand5_normalized.pt")
-    torch.save(master_df, "master_df.pt")
     
-    print("Shalom, I make for you tensor torches")
+    print("pickle files made")
     
 
 
