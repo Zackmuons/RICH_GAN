@@ -7,6 +7,9 @@ import pickle
 from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
 import seaborn as sns
+import time
+from scipy.stats import chi2_contingency
+from scipy.stats import chi2
 
 sns.set_theme(style="whitegrid", palette="muted")
 
@@ -19,26 +22,33 @@ print('device:', device)
 
 
 train_data = torch.load("rnc_data.pt").to(device)
-train_tensor = train_data
-print(train_data)
+train_tensor = train_data[:1000]
+test_tensor = train_data[5000:]
+print(train_data.size())
+
+
+
 
 with open("scaling_pions.pkl", 'rb') as file:
     scaling_dict = pickle.load(file)
 
 r_scaler = scaling_dict["radius"]
 conds_scaler = scaling_dict['conds']
-#centers_scaler = scaling_dict[]
 
 train_size = train_tensor.size()[0]
+test_size = test_tensor.size()[0]
 
 
-targets = 3
+
+
+targets = 4
 conds = 6
 noise_size = targets
 
 train_conds = train_tensor[:,:conds]
-train_targets = train_tensor[:,conds:-1]
-pid = train_tensor[:,-1]
+train_targets = train_tensor[:,conds:]
+test_conds = test_tensor[:,:conds]
+test_targets = test_tensor[:,conds:]
 
 
 class Discriminator(nn.Module):
@@ -91,13 +101,20 @@ class Generator(nn.Module):
 
 generator = Generator().to(device)
 
-discriminator.load_state_dict(torch.load('D_rnc1.pth',map_location=torch.device('cpu')))
-generator.load_state_dict(torch.load('G_rnc1.pth',map_location=torch.device('cpu')))
+discriminator.load_state_dict(torch.load('D_rnc2.pth',map_location=torch.device('cpu')))
+generator.load_state_dict(torch.load('G_rnc2.pth',map_location=torch.device('cpu')))
 
-
+ti = time.time()
 noise_vector = torch.randn(train_size, noise_size).to(device)
 latent_space_samples = torch.cat([train_conds, noise_vector], dim = 1)
 generated_points = generator(latent_space_samples).to(device)
+tf = time.time()
+
+print("{} tracks simulated in {} s".format(train_size,tf-ti))
+
+gen_df = pd.DataFrame(generated_points.detach().numpy(), columns = ['r','c_x', 'c_y', 'n_hits'])
+gen_df.to_pickle('generated_rnc.pkl')
+
 
 # Assuming train_targets and generated_points are both tensors with 3 rows and N columns
 train_targets_first_column = train_targets[:, 0]
@@ -114,6 +131,7 @@ axes[0].hist(difference.cpu().detach().numpy(), bins=50)
 axes[0].set_xlabel('Difference')
 axes[0].set_ylabel('Frequency')
 axes[0].set_title('Radius Difference')
+axes[0].set_xlim(-0.2,0.2)
 
 # Assuming train_targets and generated_points are both tensors with 3 rows and N columns
 train_targets_second_row = train_targets[:,1]
@@ -137,8 +155,9 @@ axes[1].hist(rooted_sum, bins=50)
 axes[1].set_xlabel('Rooted Sum of Differences')
 axes[1].set_ylabel('Frequency')
 axes[1].set_title('Centres Difference')
-
-
+axes[1].set_xlim(-0.2,1.25)
+plt.tight_layout()
+plt.show()
 
 
 threshold = 0.25
@@ -159,12 +178,8 @@ conds_under = conds_array[i_under_thresh]
 targets_array = train_targets.numpy()
 targets_over = targets_array[i_over_thresh]
 targets_under = targets_array[i_under_thresh]
-pid_array = pid.numpy()
-pid_over = pid_array[i_over_thresh]
-pid_under = pid_array[i_under_thresh]
-print(np.unique(pid_over, return_counts=True))
-print("========")
-print(np.unique(pid_under, return_counts=True))
+
+
 
 
 fig, axes = plt.subplots(2,2, figsize = (8,6))
@@ -201,6 +216,20 @@ axes[1,1].hist(gen_under[:,0], bins = 50)
 axes[1,1].set_title("radii under gen")
 plt.show()
 conds_name =('eta', 'phi', 'track_x','track_y', 'track_z', 'logp')
+
+fig, axes = plt.subplots(2,2, figsize=(8,8))
+axes[0,0].plot(conds_over[:,1],gen_over[:,1], '.')
+axes[0,0].set_title("phi vs cx over")
+axes[0,1].plot(conds_over[:,1],gen_over[:,2], '.')
+axes[0,1].set_title("phi vs cy over")
+axes[1,0].plot(conds_under[:,1],gen_under[:,1], '.')
+axes[1,0].set_title("phi vs cx under")
+axes[1,1].plot(conds_under[:,1],gen_under[:,2], '.')
+axes[1,1].set_title("phi vs cy under")
+plt.show()
+
+
+
 """
 for cond in range(conds):
     fig, axes = plt.subplots(2,1, figsize=(8,6))
@@ -252,3 +281,76 @@ sns.heatmap(corr_under, mask=mask, cmap=cmap, vmax=.3, center=0,
 sns.heatmap(corr_over, mask=mask, cmap=cmap, vmax=.3, center=0,
             square=True, linewidths=.5, cbar_kws={"shrink": .5}, ax=ax[2])
 
+
+
+noise_vector = torch.randn(train_size, noise_size)
+latent_space_samples = torch.cat([train_conds, noise_vector], dim = 1)
+generated_points = generator(latent_space_samples).detach().numpy()
+
+
+logp = train_conds[:,-1].numpy()
+logp = (logp/2)+3.97
+momentum = np.exp(logp)
+radii_gen = generated_points[:,0]
+
+radii_gen = r_scaler.inverse_transform(radii_gen.reshape(-1,1))
+
+
+
+radii_re = train_targets[:,0].numpy()
+radii_re = r_scaler.inverse_transform(radii_re.reshape(-1,1))
+
+
+
+
+bin_num = 10
+# Perform chi-squared test
+bins = np.histogram_bin_edges(np.concatenate((radii_re, radii_gen)), bins=bin_num)
+print(bins.shape)
+print(bins)
+# Create histograms for both datasets
+real_hist, _ = np.histogram(radii_re, bins=bins)
+model_hist, _ = np.histogram(radii_gen, bins=bins)
+print(min(real_hist))
+print(real_hist)
+print(min(model_hist))
+print(model_hist)
+chi2_stat = np.sum(((model_hist-real_hist)**2)/(model_hist))
+
+chi2stat = 0
+for i in range(bin_num):
+    diff = model_hist[i] - real_hist[i]
+    frac = diff**2/model_hist[i]
+    chi2stat += frac
+
+print(chi2stat)
+
+pval = chi2.sf(chi2_stat, bin_num-1)
+
+# Print results
+print("Chi-squared Statistic:", chi2_stat)
+print("pval:", pval)
+
+
+
+
+sns.set_theme(style="whitegrid", palette="muted")
+fig, axes = plt.subplots(2,1, figsize = (4,5))
+plt.tight_layout()
+axes[0].plot(momentum, radii_gen, '.')
+axes[0].set_xlabel("track momentum (GeV)")
+axes[0].set_ylabel("generated radius (cm)")
+axes[1].plot(momentum, radii_re, '.')
+axes[1].set_xlabel("track momentum (GeV)")
+axes[1].set_ylabel("real radius (cm)")
+plt.show()
+
+fig, axes = plt.subplots(1, figsize = (8,3))
+
+
+axes.plot(momentum, radii_gen, '.')
+axes.set_xlabel("track momentum (GeV)")
+axes.set_ylabel("generated radius (cm)")
+axes.plot(momentum, radii_re, '.')
+
+plt.show()
